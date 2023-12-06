@@ -1,37 +1,37 @@
-import logging, os, math
+import os, math, logging, datetime, pytz
 import logging.config
-from pyrogram import Client, __version__
-from pyrogram.raw.all import layer
+
+from pyrogram.errors import BadRequest, Unauthorized
+from pyrogram import Client
+from pyrogram import types
+
 from database.ia_filterdb import Media
 from database.users_chats_db import db
-from info import SESSION, API_ID, API_HASH, BOT_TOKEN, LOG_STR, LOG_CHANNEL, PORT
-from utils import temp
+from info import API_ID, API_HASH, BOT_TOKEN, LOG_CHANNEL, UPTIME, WEBHOOK, LOG_MSG
+from utils import temp, __repo__, __license__, __copyright__, __version__
 from typing import Union, Optional, AsyncGenerator
-from pyrogram import types
-from datetime import datetime
-from pytz import timezone
-from pyrogram.errors import BadRequest, Unauthorized
-from plugins import web_server
+
+from plugins import web_server 
 from aiohttp import web
 
 # Get logging configurations
 logging.config.fileConfig("logging.conf")
 logging.getLogger().setLevel(logging.INFO)
-logging.getLogger("pyrogram").setLevel(logging.ERROR)
 logging.getLogger("cinemagoer").setLevel(logging.ERROR)
-LOGGER = logging.getLogger(__name__)
-TIMEZONE = (os.environ.get("TIMEZONE", "Asia/Kolkata"))
+logger = logging.getLogger(__name__)
+
+
 class Bot(Client):
 
     def __init__(self):
         super().__init__(
-            name=SESSION,
+            name="Professor-Bot",
             api_id=API_ID,
             api_hash=API_HASH,
             bot_token=BOT_TOKEN,
-            workers=300,
+            workers=200,
             plugins={"root": "plugins"},
-            sleep_threshold=5,
+            sleep_threshold=10,
         )
 
     async def start(self):
@@ -41,32 +41,30 @@ class Bot(Client):
         await super().start()
         await Media.ensure_indexes()
         me = await self.get_me()
-        temp.ME = me.id
         temp.U_NAME = me.username
         temp.B_NAME = me.first_name
-        temp.B_LINK = me.mention
-        self.username = '@' + me.username
-        curr = datetime.now(timezone(TIMEZONE))
+        self.id = me.id
+        self.name = me.first_name
+        self.mention = me.mention
+        self.username = me.username
+        self.log_channel = LOG_CHANNEL
+        self.uptime = UPTIME
+        curr = datetime.datetime.now(pytz.timezone("Asia/Kolkata"))
         date = curr.strftime('%d %B, %Y')
-        time = curr.strftime('%I:%M:%S %p')
-        app = web.AppRunner(await web_server())
-        await app.setup()
-        bind_address = "0.0.0.0"
-        await web.TCPSite(app, bind_address, PORT).start()
-        logging.info(f"{me.first_name} with for Pyrogram v{__version__} (Layer {layer}) started on {me.username}.")
-        logging.info(LOG_STR)
-        if LOG_CHANNEL:
-            try:
-                await self.send_message(LOG_CHANNEL, text=f"<b>{me.mention} Iꜱ Rᴇsᴛᴀʀᴛᴇᴅ !!\n\n📅 Dᴀᴛᴇ : <code>{date}</code>\n⏰ Tɪᴍᴇ : <code>{time}</code>\n🌐 Tɪᴍᴇᴢᴏɴᴇ : <code>{TIMEZONE}</code>\n\n🉐 Vᴇʀsɪᴏɴ : <code>v{__version__} (Layer {layer})</code></b>")                      
-            except Unauthorized:
-                LOGGER.warning("Bot isn't able to send message to LOG_CHANNEL")
-            except BadRequest as e:
-                LOGGER.error(e)                         
-
+        tame = curr.strftime('%I:%M:%S %p')
+        logger.info(LOG_MSG.format(me.first_name, date, tame, __repo__, __version__, __license__, __copyright__))
+        try: await self.send_message(LOG_CHANNEL, text=LOG_MSG.format(me.first_name, date, tame, __repo__, __version__, __license__, __copyright__), disable_web_page_preview=True)   
+        except Exception as e: logger.warning(f"Bot Isn't Able To Send Message To LOG_CHANNEL \n{e}")
+        if WEBHOOK is True:
+            app = web.AppRunner(await web_server())
+            await app.setup()
+            await web.TCPSite(app, "0.0.0.0", 8080).start()
+            logger.info("Web Response Is Running......🕸️")
+            
     async def stop(self, *args):
         await super().stop()
         me = await self.get_me()
-        logging.info(f"{me.first_name} is_...  ♻️Restarting...")
+        logger.info(f"{me.first_name} is_...  ♻️Restarting...")
 
     async def iter_messages(self, chat_id: Union[int, str], limit: int, offset: int = 0) -> Optional[AsyncGenerator["types.Message", None]]:                       
         current = offset
@@ -81,10 +79,7 @@ class Bot(Client):
 
 
         
-app = Bot()
-app.run()
-
-
+Bot().run()
 
 
 
